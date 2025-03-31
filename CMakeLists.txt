@@ -44,6 +44,14 @@ pico_set_program_version(pico-oqs "0.1")
 pico_enable_stdio_uart(pico-oqs 0)
 pico_enable_stdio_usb(pico-oqs 1)
 
+# Include liboqs
+if(NOT DEFINED ENV{LIBOQS_PATH})
+    message(FATAL_ERROR "The environment variable LIBOQS_PATH is not set")
+endif()
+set(LIBOQS_PATH $ENV{LIBOQS_PATH})
+include_directories(${LIBOQS_PATH}/include)
+link_directories(${LIBOQS_PATH}/lib)
+
 # Add the standard library to the build
 target_link_libraries(pico-oqs
         pico_stdlib)
@@ -54,9 +62,7 @@ target_include_directories(pico-oqs PRIVATE
 )
 
 # Add any user requested libraries
-target_link_libraries(pico-oqs 
-        
-        )
+target_link_libraries(pico-oqs ${LIBOQS_PATH}/lib/liboqs.a)
 
 pico_add_extra_outputs(pico-oqs)
 
