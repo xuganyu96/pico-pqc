@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(pico-oqs pico-oqs.c )
+add_executable(pico-oqs src/pico-oqs.c)
 
 pico_set_program_name(pico-oqs "pico-oqs")
 pico_set_program_version(pico-oqs "0.1")
