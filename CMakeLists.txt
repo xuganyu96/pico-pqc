@@ -33,6 +33,11 @@ project(pico-oqs C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+include_directories(/opt/homebrew/Cellar/arm-none-eabi-gcc@8/8.5.0_2/lib/arm-none-eabi-gcc/8/gcc/arm-none-eabi/8.5.0/include)
+include_directories(/opt/homebrew/Cellar/arm-none-eabi-gcc@8/8.5.0_2/lib/arm-none-eabi-gcc/8/gcc/arm-none-eabi/8.5.0/include-fixed)
+include_directories(/opt/homebrew/Cellar/arm-none-eabi-gcc@8/8.5.0_2/arm-none-eabi/include)
+include_directories(${CMAKE_CURRENT_LIST_DIR})
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(pico-oqs src/pico-oqs.c)
