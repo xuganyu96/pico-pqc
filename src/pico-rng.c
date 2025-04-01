@@ -95,7 +95,7 @@ static void benchmark_rng128(uint8_t *pilot, size_t pilotlen, uint8_t *bench,
 static void benchmark_rng64(uint8_t *pilot, size_t pilotlen, uint8_t *bench,
                             size_t benchlen, uint32_t rounds) {
   randombytes_rng64(pilot, pilotlen);
-  printf("randombytes 128 pilot: ");
+  printf("randombytes 64 pilot: ");
   print_hexstr(pilot, pilotlen);
 
   uint64_t bench_start = time_us_64();
@@ -113,8 +113,9 @@ static void benchmark_rng64(uint8_t *pilot, size_t pilotlen, uint8_t *bench,
 static void benchmark_rng32(uint8_t *pilot, size_t pilotlen, uint8_t *bench,
                             size_t benchlen, uint32_t rounds) {
   randombytes_rng32(pilot, pilotlen);
-  printf("randombytes 128 pilot: ");
+  printf("randombytes 32 pilot: ");
   print_hexstr(pilot, pilotlen);
+  printf("\n");
 
   uint64_t bench_start = time_us_64();
   for (uint32_t round = 0; round < rounds; round++) {
@@ -134,9 +135,9 @@ int main(void) {
 
   while (1) {
     printf("========== Epoch %03d ==========\n", ctr);
-    benchmark_rng128(randpilot, RAND_PILOT_LEN, randbench, RAND_BENCH_LEN, 1);
-    benchmark_rng64(randpilot, RAND_PILOT_LEN, randbench, RAND_BENCH_LEN, 1);
-    benchmark_rng32(randpilot, RAND_PILOT_LEN, randbench, RAND_BENCH_LEN, 1);
+    benchmark_rng128(randpilot, RAND_PILOT_LEN, randbench, RAND_BENCH_LEN, 1000);
+    benchmark_rng64(randpilot, RAND_PILOT_LEN, randbench, RAND_BENCH_LEN, 1000);
+    benchmark_rng32(randpilot, RAND_PILOT_LEN, randbench, RAND_BENCH_LEN, 1000);
     printf("========== Epoch end  ==========\n");
     ctr++;
     sleep_ms(1000);
