@@ -212,6 +212,8 @@ int main(void) {
       if (
         (strncmp(alg_name, "SPHINCS", strlen("SPHINCS")) == 0)
         || (strncmp(alg_name, "MAYO", strlen("MAYO")) == 0)
+        || (strncmp(alg_name, "cross", strlen("cross")) == 0)
+        || (strncmp(alg_name, "OV", strlen("OV")) == 0)
       ) {
         printf("WARNING: Skipping %s\n", alg_name);
         continue;
