@@ -40,6 +40,9 @@ include_directories(${ARM_GCC_PATH}/arm-none-eabi/include)
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 include_directories(${PICO_SDK_PATH}/src/rp2_common/pico_cyw43_arch/include) # Wifi header
 include_directories(${PICO_SDK_PATH}/src/rp2_common/pico_rand/include) # RNG header
+include_directories(${PICO_SDK_PATH}/src/rp2_common/hardware_base/include)
+include_directories(${PICO_SDK_PATH}/src/rp2350/hardware_regs/include)
+include_directories(${PICO_SDK_PATH}/src/rp2350/hardware_structs/include)
 
 # Include liboqs
 if(NOT DEFINED ENV{LIBOQS_PATH})
@@ -49,21 +52,26 @@ set(LIBOQS_PATH $ENV{LIBOQS_PATH})
 include_directories(${LIBOQS_PATH}/include)
 link_directories(${LIBOQS_PATH}/lib)
 
+# Source files
+set(SRC_FILES
+  src/randombytes.c)
 
-add_executable(pico-oqs src/pico-oqs.c)
-pico_set_program_name(pico-oqs "pico-oqs")
-pico_set_program_version(pico-oqs "0.1")
+# Binaries
+add_executable(pico-oqs src/pico-oqs.c ${SRC_FILES})
 pico_enable_stdio_uart(pico-oqs 0)
 pico_enable_stdio_usb(pico-oqs 1)
 target_link_libraries(pico-oqs pico_stdlib ${LIBOQS_PATH}/lib/liboqs.a)
 pico_add_extra_outputs(pico-oqs)
 
-add_executable(pico-rng src/pico-rng.c)
-pico_set_program_name(pico-rng "pico-rng")
-pico_set_program_version(pico-rng "0.1")
+add_executable(pico-rng src/pico-rng.c ${SRC_FILES})
 pico_enable_stdio_uart(pico-rng 0)
 pico_enable_stdio_usb(pico-rng 1)
 # TODO: needed to manually add pico_rand :(
 target_link_libraries(pico-rng pico_stdlib pico_rand ${LIBOQS_PATH}/lib/liboqs.a)
 pico_add_extra_outputs(pico-rng)
 
+add_executable(speed src/speed.c ${SRC_FILES})
+pico_enable_stdio_uart(speed 0)
+pico_enable_stdio_usb(speed 1)
+target_link_libraries(speed pico_stdlib)
+pico_add_extra_outputs(speed)
