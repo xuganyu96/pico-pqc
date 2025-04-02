@@ -4,6 +4,7 @@
 #include "cyccnt.h"
 #include "oqs/kem.h"
 #include "oqs/rand.h"
+#include "oqs/sig.h"
 #include "randombytes.h"
 #include <inttypes.h>
 #include <pico/stdio.h>
@@ -11,8 +12,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ROUNDS_LOG2 7
 #define TRY_MALLOC_MAX (400000)
+#define ESTIMATED_TLS_TRANSCRIPT_SIZE (4096)
 
 // TODO: may be custom allocators in `trymalloc.h`?
 static void *try_malloc(size_t size) {
@@ -23,36 +24,86 @@ static void *try_malloc(size_t size) {
 }
 
 /**
- * naive benchmarker: start a timer, run the func a bunch of times, then print a
- * line of CSV: <target name>,total_dur
- *
- * TODO: this does not deal well with routines that have large variationss, such
- * as ML-DSA sign although maybe this should be treated as a building block to
- * produce primitive data, and the analysis on variations and stuff should NOT
- * happen on the board
+ * Benchmark a single instance of digital signature on a random msg of the
+ * specified size
  */
-static void black_box_bench(const char *target_name,
-                            void (*target_func)(void)) {
-  uint32_t cycle_cnt = 0;
-  uint32_t total_begin, total_end, overhead_begin, overhead_end, dur;
-  reset_cyccnt();
-  total_begin = read_cyccnt();
-  for (uint32_t i = 0; i < (1 << ROUNDS_LOG2); i++) {
-    target_func();
+static void bench_sig(const char *method_name, size_t msglen) {
+  OQS_SIG *sig;
+  uint8_t *pk;
+  uint8_t *sk;
+  uint8_t *msg;
+  uint8_t *sigma;
+  size_t sigmalen;
+  OQS_STATUS rc, ret;
+
+  sig = OQS_SIG_new(method_name);
+  if (!sig) {
+    printf("ERROR: Failed to fetch %s\n", method_name);
+    goto err;
   }
-  total_end = read_cyccnt();
+  printf("%s,init,0,0\n", sig->method_name);
+
+  pk = try_malloc(sig->length_public_key);
+  if (!pk) {
+    printf("Requested %zu/%zu bytes for pk\n", sig->length_public_key,
+           TRY_MALLOC_MAX);
+    goto err;
+  }
+  sk = try_malloc(sig->length_secret_key);
+  if (!sk) {
+    printf("Requested %zu/%zu bytes for sk\n", sig->length_secret_key,
+           TRY_MALLOC_MAX);
+    goto err;
+  }
+  msg = try_malloc(msglen);
+  if (!msg) {
+    printf("Requested %zu/%zu bytes for msg\n", msglen, TRY_MALLOC_MAX);
+    goto err;
+  }
+  sigma = try_malloc(sig->length_signature);
+  if (!sigma) {
+    printf("Requested %zu/%zu bytes for signature\n", sig->length_signature,
+           TRY_MALLOC_MAX);
+    goto err;
+  }
+
+  uint32_t cyccnt_before, cyccnt_after;
   reset_cyccnt();
-  overhead_begin = read_cyccnt();
-  for (uint32_t i = 0; i < (1 << ROUNDS_LOG2); i++)
-    ;
-  overhead_end = read_cyccnt();
-  dur = ((total_end - total_begin) - (overhead_end - overhead_begin)) >>
-        ROUNDS_LOG2;
+  cyccnt_before = read_cyccnt();
+  rc = sig->keypair(pk, sk);
+  cyccnt_after = read_cyccnt();
+  printf("%s,%s,%" PRIu32 ",%d\n", sig->method_name, "keypair",
+         cyccnt_after - cyccnt_before, rc);
 
-  printf("%s,%" PRIu32 "\n", target_name, dur);
+  reset_cyccnt();
+  cyccnt_before = read_cyccnt();
+  rc = sig->sign(sigma, &sigmalen, msg, msglen, sk);
+  cyccnt_after = read_cyccnt();
+  printf("%s,%s,%" PRIu32 ",%d\n", sig->method_name, "sign",
+         cyccnt_after - cyccnt_before, rc);
+
+  reset_cyccnt();
+  cyccnt_before = read_cyccnt();
+  rc = sig->verify(msg, msglen, sigma, sigmalen, pk);
+  cyccnt_after = read_cyccnt();
+  printf("%s,%s,%" PRIu32 ",%d\n", sig->method_name, "verify",
+         cyccnt_after - cyccnt_before, rc);
+  goto cleanup;
+
+err:
+  ret = OQS_ERROR;
+
+cleanup:
+  if (sk)
+    OQS_MEM_secure_free(sk, sig->length_secret_key);
+  if (pk)
+    OQS_MEM_insecure_free(pk);
+  if (msg)
+    OQS_MEM_insecure_free(msg);
+  if (sigma)
+    OQS_MEM_insecure_free(sigma);
+  OQS_SIG_free(sig);
 }
-
-static void busybox(void) { sleep_ms(10); }
 
 /**
  * Benchmark a single instance of a KEM
@@ -71,6 +122,7 @@ static void bench_kem(const char *method_name) {
   if (!kem) {
     goto err;
   }
+  printf("%s,init,0,0\n", kem->method_name);
   pk = try_malloc(kem->length_public_key);
   if (!pk) {
     printf("Requested %zu/%zu bytes for pk\n", kem->length_public_key,
@@ -102,25 +154,27 @@ static void bench_kem(const char *method_name) {
     goto err;
   }
 
-  // TODO: we need more scientific testing methodology
   reset_cyccnt();
   cyccnt_before = read_cyccnt();
   keypair_status = kem->keypair(pk, sk);
   cyccnt_after = read_cyccnt();
   printf("%s,%s,%" PRIu32 ",%d\n", kem->method_name, "keypair",
          cyccnt_after - cyccnt_before, keypair_status);
+
   reset_cyccnt();
   cyccnt_before = read_cyccnt();
   encap_status = kem->encaps(ct, ss, pk);
   cyccnt_after = read_cyccnt();
   printf("%s,%s,%" PRIu32 ",%d\n", kem->method_name, "encaps",
          cyccnt_after - cyccnt_before, encap_status);
+
   reset_cyccnt();
   cyccnt_before = read_cyccnt();
   decap_status = kem->decaps(ss_cmp, ct, sk);
   cyccnt_after = read_cyccnt();
   printf("%s,%s,%" PRIu32 ",%d\n", kem->method_name, "decaps",
          cyccnt_after - cyccnt_before, decap_status);
+
   if (memcmp(ss, ss_cmp, kem->length_shared_secret) != 0) {
     printf("ERROR: Decapsulation is incorect\n");
     goto err;
@@ -152,7 +206,24 @@ int main(void) {
   OQS_randombytes_custom_algorithm(randombytes_rng64);
 
   while (1) {
-    printf("algorithm,routine,cycles,fail\n");
+    printf("algorithm,routine,cycles,retcode\n");
+    for (int alg_id = 0; alg_id < OQS_SIG_alg_count(); alg_id++) {
+      const char *alg_name = OQS_SIG_alg_identifier(alg_id);
+      if (
+        (strncmp(alg_name, "SPHINCS", strlen("SPHINCS")) == 0)
+        || (strncmp(alg_name, "MAYO", strlen("MAYO")) == 0)
+      ) {
+        printf("WARNING: Skipping %s\n", alg_name);
+        continue;
+      }
+      printf("DEBUG: %s\n", alg_name);
+      if (!OQS_SIG_alg_is_enabled(alg_name)) {
+        printf("ERROR: SIG algorithm %s not enabled\n", alg_name);
+        continue;
+      }
+      bench_sig(alg_name, ESTIMATED_TLS_TRANSCRIPT_SIZE);
+    }
+
     for (int alg_id = 0; alg_id < OQS_KEM_alg_count(); alg_id++) {
       const char *alg_name = OQS_KEM_alg_identifier(alg_id);
       if (!OQS_KEM_alg_is_enabled(alg_name)) {
@@ -165,6 +236,7 @@ int main(void) {
       }
       bench_kem(alg_name);
     }
-    sleep_ms(1000);
+
+    // sleep_ms(1000);
   }
 }
