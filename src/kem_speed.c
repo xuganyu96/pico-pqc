@@ -159,10 +159,10 @@ int main(void) {
         printf("ERROR: KEM algorithm %s not enabled!\n", alg_name);
         continue;
       }
-      // if (strncmp(alg_name, "Classic", 7) == 0) {
-      //   printf("WARNING: Skipping %s\n", alg_name);
-      //   continue;
-      // }
+      if (strncmp(alg_name, "Classic", 7) == 0) {
+        printf("WARNING: Skipping %s\n", alg_name);
+        continue;
+      }
       bench_kem(alg_name);
     }
     sleep_ms(1000);
