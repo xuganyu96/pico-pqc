@@ -1,6 +1,11 @@
+/**
+ * TODO: why does randombytes_rng64 have the best performance?
+ *   randombytes_rng32 is half as fast; randombytes_rng128 is slightly slower
+ */
 #include "randombytes.h"
 #include <pico/rand.h>
 #include <string.h>
+
 /**
  * Fill in the specified number of bytes using the rng128 method
  */

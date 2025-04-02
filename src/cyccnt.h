@@ -1,8 +1,10 @@
 /**
- * Inline functions for getting cycle counts
+ * Inline functions for getting cycle counts from the Cortex-M33 core on RP2350
  *
  * Hardware register information can be found on the data sheet:
  * // https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+ *
+ * For reference, sleeping for 10ms takes about 1500000 cycles
  */
 #ifndef CYCCNT_H
 #define CYCCNT_H
