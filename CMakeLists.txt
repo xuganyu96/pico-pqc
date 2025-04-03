@@ -43,7 +43,26 @@ include_directories(${PICO_SDK_PATH}/src/rp2350/hardware_regs/include)
 include_directories(${PICO_SDK_PATH}/src/rp2350/hardware_structs/include)
 
 # Source files
-set(COMMON_SRC_FILES src/randombytes.c)
+include_directories(src src/common)
+set(ML_KEM_512_SRC_FILES
+  src/crypto_kem/ml-kem-512/clean/cbd.c 
+  src/crypto_kem/ml-kem-512/clean/indcpa.c
+  src/crypto_kem/ml-kem-512/clean/kem.c
+  src/crypto_kem/ml-kem-512/clean/ntt.c
+  src/crypto_kem/ml-kem-512/clean/poly.c
+  src/crypto_kem/ml-kem-512/clean/polyvec.c
+  src/crypto_kem/ml-kem-512/clean/reduce.c
+  src/crypto_kem/ml-kem-512/clean/symmetric-shake.c
+  src/crypto_kem/ml-kem-512/clean/verify.c
+)
+set(COMMON_SRC_FILES 
+  src/common/aes.c
+  src/common/fips202.c
+  src/common/nistseedexpander.c
+  src/common/randombytes.c
+  src/common/sha2.c
+  src/common/sp800-185.c
+)
 
 # Binaries
 add_executable(busybox src/busybox.c ${COMMON_SRC_FILES})
@@ -51,3 +70,14 @@ pico_enable_stdio_uart(busybox 0)
 pico_enable_stdio_usb(busybox 1)
 target_link_libraries(busybox pico_stdlib pico_rand)
 pico_add_extra_outputs(busybox)
+
+add_executable(
+  pqclean_speed 
+  src/pqclean_speed.c 
+  ${COMMON_SRC_FILES}
+  ${ML_KEM_512_SRC_FILES}
+)
+pico_enable_stdio_uart(pqclean_speed 0)
+pico_enable_stdio_usb(pqclean_speed 1)
+target_link_libraries(pqclean_speed pico_stdlib pico_rand)
+pico_add_extra_outputs(pqclean_speed)

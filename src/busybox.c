@@ -1,5 +1,5 @@
 /**
- * Benchmarking speed for KEMs
+ * Example program testing DWT and CYCCNT
  */
 #include "cyccnt.h"
 #include <inttypes.h>
