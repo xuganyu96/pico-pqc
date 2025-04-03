@@ -1,5 +1,3 @@
-# Generated Cmake Pico project file
-
 cmake_minimum_required(VERSION 3.13)
 
 set(CMAKE_C_STANDARD 11)
@@ -44,13 +42,47 @@ include_directories(${PICO_SDK_PATH}/src/rp2_common/hardware_base/include)
 include_directories(${PICO_SDK_PATH}/src/rp2350/hardware_regs/include)
 include_directories(${PICO_SDK_PATH}/src/rp2350/hardware_structs/include)
 
-# Include liboqs
+# Include liboqs, which is built externally.
 if(NOT DEFINED ENV{LIBOQS_PATH})
   message(FATAL_ERROR "Must specify path to liboqs w/ LIBOQS_PATH")
 endif()
 set(LIBOQS_PATH $ENV{LIBOQS_PATH})
 include_directories(${LIBOQS_PATH}/include)
 link_directories(${LIBOQS_PATH}/lib)
+
+# IND-1CCA KEM
+# TODO: build static library libind1ccakem.a
+# Probably need to compile ind1cca/mlkem three times, each with MLKEM_K set to 2, 3, 4
+# Don't need three separate libraries because src/ind1cca/mlkem is appropriately namespaced
+set(MLKEM_SRC_FILES 
+  src/ind1cca/mlkem/cbd.c
+  src/ind1cca/mlkem/fips202.c
+  src/ind1cca/mlkem/indcpa.c
+  src/ind1cca/mlkem/keccakf1600.c
+  src/ind1cca/mlkem/kem.c
+  src/ind1cca/mlkem/matacc.c
+  src/ind1cca/mlkem/ntt.c
+  src/ind1cca/mlkem/poly.c
+  src/ind1cca/mlkem/polyvec.c
+  src/ind1cca/mlkem/reduce.c
+  src/ind1cca/mlkem/symmetric-shake.c
+  src/ind1cca/mlkem/verify.c
+)
+add_library(mlkem_512 OBJECT ${MLKEM_SRC_FILES})
+target_compile_definitions(mlkem_512 PRIVATE MLKEM_K=2)
+target_include_directories(mlkem_512 PRIVATE src/ind1cca/mlkem)
+add_library(mlkem_768 OBJECT ${MLKEM_SRC_FILES})
+target_compile_definitions(mlkem_768 PRIVATE MLKEM_K=3)
+target_include_directories(mlkem_768 PRIVATE src/ind1cca/mlkem)
+add_library(mlkem_1024 OBJECT ${MLKEM_SRC_FILES})
+target_compile_definitions(mlkem_1024 PRIVATE MLKEM_K=4)
+target_include_directories(mlkem_1024 PRIVATE src/ind1cca/mlkem)
+add_library(ind1cca STATIC
+    $<TARGET_OBJECTS:mlkem_512>
+    $<TARGET_OBJECTS:mlkem_768>
+    $<TARGET_OBJECTS:mlkem_1024>
+)
+set_target_properties(ind1cca PROPERTIES OUTPUT_NAME "ind1cca")
 
 # Source files
 set(SRC_FILES
@@ -79,5 +111,5 @@ pico_add_extra_outputs(speed)
 add_executable(oqs_speed src/oqs_speed.c ${SRC_FILES})
 pico_enable_stdio_uart(oqs_speed 0)
 pico_enable_stdio_usb(oqs_speed 1)
-target_link_libraries(oqs_speed pico_stdlib pico_rand ${LIBOQS_PATH}/lib/liboqs.a)
+target_link_libraries(oqs_speed pico_stdlib pico_rand ind1cca ${LIBOQS_PATH}/lib/liboqs.a)
 pico_add_extra_outputs(oqs_speed)

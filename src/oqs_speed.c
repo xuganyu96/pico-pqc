@@ -5,6 +5,7 @@
 #include "oqs/kem.h"
 #include "oqs/rand.h"
 #include "oqs/sig.h"
+#include "ind1cca/mlkem/api.h"
 #include "randombytes.h"
 #include <inttypes.h>
 #include <pico/stdio.h>
@@ -199,6 +200,43 @@ cleanup:
   OQS_KEM_free(kem);
 }
 
+static void bench_ind1ccakem() {
+  uint8_t pk[pqcrystals_mlkem512_PUBLICKEYBYTES];
+  uint8_t sk[pqcrystals_mlkem512_SECRETKEYBYTES];
+  uint8_t ct[pqcrystals_mlkem512_CIPHERTEXTBYTES];
+  uint8_t ss[pqcrystals_mlkem512_BYTES];
+  uint8_t ss_cmp[pqcrystals_mlkem512_BYTES];
+  uint32_t cyccnt_before, cyccnt_after;
+  int keypair_status, encap_status, decap_status;
+
+  reset_cyccnt();
+  cyccnt_before = read_cyccnt();
+  reset_cyccnt();
+  cyccnt_before = read_cyccnt();
+  keypair_status = pqcrystals_mlkem512_ref_keypair(pk, sk);
+  cyccnt_after = read_cyccnt();
+  printf("%s,%s,%" PRIu32 ",%d\n", "OT-ML-KEM-512", "keypair",
+         cyccnt_after - cyccnt_before, keypair_status);
+
+  reset_cyccnt();
+  cyccnt_before = read_cyccnt();
+  encap_status = pqcrystals_mlkem512_ref_enc(ct, ss, pk);
+  cyccnt_after = read_cyccnt();
+  printf("%s,%s,%" PRIu32 ",%d\n", "OT-ML-KEM-512", "encaps",
+         cyccnt_after - cyccnt_before, encap_status);
+
+  reset_cyccnt();
+  cyccnt_before = read_cyccnt();
+  decap_status = pqcrystals_mlkem512_ref_dec(ss_cmp, ct, sk);
+  cyccnt_after = read_cyccnt();
+  printf("%s,%s,%" PRIu32 ",%d\n", "OT-ML-KEM-512", "decaps",
+         cyccnt_after - cyccnt_before, decap_status);
+
+  if (memcmp(ss, ss_cmp, pqcrystals_mlkem512_BYTES) != 0) {
+    printf("ERROR: OT-ML-KEM-512 decapsulates incorrect\n");
+  }
+}
+
 int main(void) {
   stdio_init_all();
   enable_dwt();
@@ -215,10 +253,10 @@ int main(void) {
         || (strncmp(alg_name, "cross", strlen("cross")) == 0)
         || (strncmp(alg_name, "OV", strlen("OV")) == 0)
       ) {
-        printf("WARNING: Skipping %s\n", alg_name);
+        // printf("WARNING: Skipping %s\n", alg_name);
         continue;
       }
-      printf("DEBUG: %s\n", alg_name);
+      // printf("DEBUG: %s\n", alg_name);
       if (!OQS_SIG_alg_is_enabled(alg_name)) {
         printf("ERROR: SIG algorithm %s not enabled\n", alg_name);
         continue;
@@ -226,6 +264,8 @@ int main(void) {
       bench_sig(alg_name, ESTIMATED_TLS_TRANSCRIPT_SIZE);
     }
 
+    
+    bench_ind1ccakem();
     for (int alg_id = 0; alg_id < OQS_KEM_alg_count(); alg_id++) {
       const char *alg_name = OQS_KEM_alg_identifier(alg_id);
       if (!OQS_KEM_alg_is_enabled(alg_name)) {
@@ -233,7 +273,7 @@ int main(void) {
         continue;
       }
       if (strncmp(alg_name, "Classic", 7) == 0) {
-        printf("WARNING: Skipping %s\n", alg_name);
+        // printf("WARNING: Skipping %s\n", alg_name);
         continue;
       }
       bench_kem(alg_name);

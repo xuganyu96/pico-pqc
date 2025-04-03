@@ -7,6 +7,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+// randombytes_rng64 has the best throughput (bytes/sec)
+#define randombytes randombytes_rng64
+
 void randombytes_rng128(uint8_t *bytes, size_t len);
 
 void randombytes_rng64(uint8_t *bytes, size_t len);
