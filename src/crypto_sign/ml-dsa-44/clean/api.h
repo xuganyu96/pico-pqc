@@ -1,6 +1,7 @@
 #ifndef PQCLEAN_MLDSA44_CLEAN_API_H
 #define PQCLEAN_MLDSA44_CLEAN_API_H
 
+#include <hardware/regs/sio.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -36,4 +37,19 @@ int PQCLEAN_MLDSA44_CLEAN_crypto_sign_open_ctx(uint8_t *m, size_t *mlen,
 #define PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(sig, siglen, m, mlen, pk) PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify_ctx(sig, siglen, m, mlen, NULL, 0, pk)
 #define PQCLEAN_MLDSA44_CLEAN_crypto_sign_open(m, mlen, sm, smlen, pk) PQCLEAN_MLDSA44_CLEAN_crypto_sign_open_ctx(m, mlen, sm, smlen, NULL, 0, pk)
 
+inline int PQCLEAN_MLDSA44_CLEAN_crypto_sign_signature_inline(
+  uint8_t *sig, size_t *siglen,
+  const uint8_t *msg, size_t msglen,
+  const uint8_t *sk
+) {
+  return PQCLEAN_MLDSA44_CLEAN_crypto_sign_signature_ctx(sig, siglen, msg, msglen, NULL, 0, sk);
+}
+
+inline int PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify_inline(
+  const uint8_t *sig, size_t siglen,
+  const uint8_t *msg, size_t msglen,
+  const uint8_t *pk
+) {
+  return PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify_ctx(sig, siglen, msg, msglen, NULL, 0, pk);
+}
 #endif
