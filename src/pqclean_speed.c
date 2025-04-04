@@ -6,9 +6,16 @@
 #include <pico/time.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "crypto_kem/ml-kem-512/clean/api.h"
+#include "crypto_kem/ml-kem-768/clean/api.h"
+#include "crypto_kem/ml-kem-1024/clean/api.h"
+#include "crypto_kem/hqc-128/clean/api.h"
+#include "crypto_kem/hqc-192/clean/api.h"
+#include "crypto_kem/hqc-256/clean/api.h"
+#include "crypto_kem/mceliece348864f/clean/api.h"
 #include "cyccnt.h"
 
 static void println_csv(const char *alg, const char *routine, uint32_t cycles,
@@ -16,57 +23,85 @@ static void println_csv(const char *alg, const char *routine, uint32_t cycles,
   printf("%s,%s,%" PRIu32 ",%d\n", alg, routine, cycles, ret);
 }
 
-static void bench_ml_kem_512(void) {
-  uint8_t pk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_PUBLICKEYBYTES];
-  uint8_t sk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES];
-  uint8_t ct[PQCLEAN_MLKEM512_CLEAN_CRYPTO_CIPHERTEXTBYTES];
-  uint8_t ss[PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES];
-  uint8_t ss_cmp[PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES];
+static void bench_kem(
+    size_t pksize, size_t sksize, size_t ctsize, size_t sssize,
+    int (*crypto_kem_keypair)(uint8_t *, uint8_t *),
+    int (*crypto_kem_enc)(uint8_t *, uint8_t *, const uint8_t *),
+    int (*crypto_kem_dec)(uint8_t *, const uint8_t *, const uint8_t *),
+    const char *method_name) {
+  uint8_t *pk = malloc(pksize);
+  if (!pk)
+    printf("ERROR: failed to allocate %s pk %zu bytes\n", method_name, pksize);
+  uint8_t *sk = malloc(sksize);
+  if (!sk)
+    printf("ERROR: failed to allocate %s sk %zu bytes\n", method_name, sksize);
+  uint8_t *ct = malloc(ctsize);
+  if (!ct)
+    printf("ERROR: failed to allocate %s ct %zu bytes\n", method_name, ctsize);
+  uint8_t *ss = malloc(sssize);
+  if (!ss)
+    printf("ERROR: failed to allocate %s ss %zu bytes\n", method_name, sssize);
+  uint8_t *ss_cmp = malloc(sssize);
+  if (!ss_cmp)
+    printf("ERROR: failed to allocate %s ss %zu bytes\n", method_name, sssize);
   int keypair_status, encap_status, decap_status;
   uint32_t cyccnt_start, cyccnt_stop;
 
   reset_cyccnt();
   cyccnt_start = read_cyccnt();
-  keypair_status = PQCLEAN_MLKEM512_CLEAN_crypto_kem_keypair(pk, sk);
+  keypair_status = crypto_kem_keypair(pk, sk);
   cyccnt_stop = read_cyccnt();
-  println_csv(PQCLEAN_MLKEM512_CLEAN_CRYPTO_ALGNAME, "keypair",
-              cyccnt_stop - cyccnt_start, keypair_status);
+  println_csv(method_name, "keypair", cyccnt_stop - cyccnt_start,
+              keypair_status);
   if (keypair_status != 0) {
-    printf("ERROR: ML-KEM-512 keypair failed\n");
+    printf("ERROR: %s keypair failed\n", method_name);
     goto cleanup;
   }
 
   reset_cyccnt();
   cyccnt_start = read_cyccnt();
-  encap_status = PQCLEAN_MLKEM512_CLEAN_crypto_kem_enc(ct, ss, pk);
+  encap_status = crypto_kem_enc(ct, ss, pk);
   cyccnt_stop = read_cyccnt();
-  println_csv(PQCLEAN_MLKEM512_CLEAN_CRYPTO_ALGNAME, "encap",
+  println_csv(method_name, "encap",
               cyccnt_stop - cyccnt_start, keypair_status);
   if (encap_status != 0) {
-    printf("ERROR: ML-KEM-512 encap failed\n");
+    printf("ERROR: %s encap failed\n", method_name);
     goto cleanup;
   }
 
   reset_cyccnt();
   cyccnt_start = read_cyccnt();
-  decap_status = PQCLEAN_MLKEM512_CLEAN_crypto_kem_dec(ss_cmp, ct, sk);
+  decap_status = crypto_kem_dec(ss_cmp, ct, sk);
   cyccnt_stop = read_cyccnt();
-  println_csv(PQCLEAN_MLKEM512_CLEAN_CRYPTO_ALGNAME, "decap",
+  println_csv(method_name, "decap",
               cyccnt_stop - cyccnt_start, keypair_status);
   if (decap_status != 0) {
-    printf("ERROR: ML-KEM-512 decap failed\n");
+    printf("ERROR: %s decap failed\n", method_name);
     goto cleanup;
   }
-  if (memcmp(ss, ss_cmp, sizeof(ss)) != 0) {
-    printf("ERROR: ML-KEM-512 decap incorrect\n");
+  if (memcmp(ss, ss_cmp, sizeof(sssize)) != 0) {
+    printf("ERROR: %s decap incorrect\n", method_name);
     goto cleanup;
   }
-  printf("DEBUG: ML-KEM-512 Ok.\n");
+  printf("DEBUG: %s Ok.\n", method_name);
 
 cleanup:
-  memset(sk, 0, sizeof(sk));
-  memset(ss, 0, sizeof(ss));
-  memset(ss_cmp, 0, sizeof(ss_cmp));
+  if (pk)
+    free(pk);
+  if (sk) {
+    memset(sk, 0, sizeof(sksize));
+    free(sk);
+  }
+  if (ct)
+    free(ct);
+  if (ss) {
+    memset(ss, 0, sizeof(sssize));
+    free(ss);
+  }
+  if (ss_cmp) {
+    memset(ss_cmp, 0, sizeof(sssize));
+    free(ss_cmp);
+  }
 }
 
 int main(void) {
@@ -74,7 +109,75 @@ int main(void) {
   enable_dwt();
 
   while (1) {
-    bench_ml_kem_512();
-    sleep_ms(1000);
+    bench_kem(
+      PQCLEAN_MLKEM512_CLEAN_CRYPTO_PUBLICKEYBYTES,
+      PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES,
+      PQCLEAN_MLKEM512_CLEAN_CRYPTO_CIPHERTEXTBYTES,
+      PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES,
+      PQCLEAN_MLKEM512_CLEAN_crypto_kem_keypair,
+      PQCLEAN_MLKEM512_CLEAN_crypto_kem_enc,
+      PQCLEAN_MLKEM512_CLEAN_crypto_kem_dec,
+      PQCLEAN_MLKEM512_CLEAN_CRYPTO_ALGNAME
+    );
+    bench_kem(
+      PQCLEAN_MLKEM768_CLEAN_CRYPTO_PUBLICKEYBYTES,
+      PQCLEAN_MLKEM768_CLEAN_CRYPTO_SECRETKEYBYTES,
+      PQCLEAN_MLKEM768_CLEAN_CRYPTO_CIPHERTEXTBYTES,
+      PQCLEAN_MLKEM768_CLEAN_CRYPTO_BYTES,
+      PQCLEAN_MLKEM768_CLEAN_crypto_kem_keypair,
+      PQCLEAN_MLKEM768_CLEAN_crypto_kem_enc,
+      PQCLEAN_MLKEM768_CLEAN_crypto_kem_dec,
+      PQCLEAN_MLKEM768_CLEAN_CRYPTO_ALGNAME
+    );
+    bench_kem(
+      PQCLEAN_MLKEM1024_CLEAN_CRYPTO_PUBLICKEYBYTES,
+      PQCLEAN_MLKEM1024_CLEAN_CRYPTO_SECRETKEYBYTES,
+      PQCLEAN_MLKEM1024_CLEAN_CRYPTO_CIPHERTEXTBYTES,
+      PQCLEAN_MLKEM1024_CLEAN_CRYPTO_BYTES,
+      PQCLEAN_MLKEM1024_CLEAN_crypto_kem_keypair,
+      PQCLEAN_MLKEM1024_CLEAN_crypto_kem_enc,
+      PQCLEAN_MLKEM1024_CLEAN_crypto_kem_dec,
+      PQCLEAN_MLKEM1024_CLEAN_CRYPTO_ALGNAME
+    );
+    bench_kem(
+      PQCLEAN_HQC128_CLEAN_CRYPTO_PUBLICKEYBYTES,
+      PQCLEAN_HQC128_CLEAN_CRYPTO_SECRETKEYBYTES,
+      PQCLEAN_HQC128_CLEAN_CRYPTO_CIPHERTEXTBYTES,
+      PQCLEAN_HQC128_CLEAN_CRYPTO_BYTES,
+      PQCLEAN_HQC128_CLEAN_crypto_kem_keypair,
+      PQCLEAN_HQC128_CLEAN_crypto_kem_enc,
+      PQCLEAN_HQC128_CLEAN_crypto_kem_dec,
+      PQCLEAN_HQC128_CLEAN_CRYPTO_ALGNAME
+    );
+    bench_kem(
+      PQCLEAN_HQC192_CLEAN_CRYPTO_PUBLICKEYBYTES,
+      PQCLEAN_HQC192_CLEAN_CRYPTO_SECRETKEYBYTES,
+      PQCLEAN_HQC192_CLEAN_CRYPTO_CIPHERTEXTBYTES,
+      PQCLEAN_HQC192_CLEAN_CRYPTO_BYTES,
+      PQCLEAN_HQC192_CLEAN_crypto_kem_keypair,
+      PQCLEAN_HQC192_CLEAN_crypto_kem_enc,
+      PQCLEAN_HQC192_CLEAN_crypto_kem_dec,
+      PQCLEAN_HQC192_CLEAN_CRYPTO_ALGNAME
+    );
+    bench_kem(
+      PQCLEAN_HQC256_CLEAN_CRYPTO_PUBLICKEYBYTES,
+      PQCLEAN_HQC256_CLEAN_CRYPTO_SECRETKEYBYTES,
+      PQCLEAN_HQC256_CLEAN_CRYPTO_CIPHERTEXTBYTES,
+      PQCLEAN_HQC256_CLEAN_CRYPTO_BYTES,
+      PQCLEAN_HQC256_CLEAN_crypto_kem_keypair,
+      PQCLEAN_HQC256_CLEAN_crypto_kem_enc,
+      PQCLEAN_HQC256_CLEAN_crypto_kem_dec,
+      PQCLEAN_HQC256_CLEAN_CRYPTO_ALGNAME
+    );
+    // bench_kem(
+    //   PQCLEAN_MCELIECE348864F_CLEAN_CRYPTO_PUBLICKEYBYTES,
+    //   PQCLEAN_MCELIECE348864F_CLEAN_CRYPTO_SECRETKEYBYTES,
+    //   PQCLEAN_MCELIECE348864F_CLEAN_CRYPTO_CIPHERTEXTBYTES,
+    //   PQCLEAN_MCELIECE348864F_CLEAN_CRYPTO_BYTES,
+    //   PQCLEAN_MCELIECE348864F_CLEAN_crypto_kem_keypair,
+    //   PQCLEAN_MCELIECE348864F_CLEAN_crypto_kem_enc,
+    //   PQCLEAN_MCELIECE348864F_CLEAN_crypto_kem_dec,
+    //   PQCLEAN_MCELIECE348864F_CLEAN_CRYPTO_ALGNAME
+    // );
   }
 }
