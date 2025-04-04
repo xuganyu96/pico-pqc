@@ -26,7 +26,7 @@ set(PICO_BOARD pico2_w CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(pico-oqs C CXX ASM)
+project(pico-pqc C CXX ASM)
 
 pico_sdk_init()
 
